@@ -53,7 +53,7 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;
   background:var(--chip);color:var(--ink2);padding:3px 7px;border-radius:6px}
 .nm{flex:1;font-weight:600;font-size:15px;min-width:0;word-break:break-word}
 .kill{flex:0 0 auto;border:0;background:none;color:var(--ink2);font-size:20px;padding:0 2px;cursor:pointer;line-height:1}
-.head2{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;padding:0 12px 8px;align-items:end}
+.head2{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 12px 8px;align-items:end}
 .fld label{display:block;font-size:11px;color:var(--ink2);margin-bottom:3px;font-weight:600}
 .fld input{width:100%;padding:11px 8px;border-radius:9px;border:1px solid var(--line);
   background:var(--card2);color:var(--ink);font-size:17px;font-weight:600;text-align:center;font-family:inherit}
@@ -62,12 +62,16 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;
   font-weight:600;padding-bottom:11px;white-space:nowrap;cursor:pointer}
 .myo input{width:19px;height:19px;accent-color:var(--accent);margin:0}
 .sets{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px}
-.setbox{position:relative;flex:0 0 auto;width:54px}
+.setbox{position:relative;flex:0 0 auto;width:58px}
 .setbox span{position:absolute;top:-1px;left:5px;font-size:9px;color:var(--ink2);font-weight:700}
-.setbox input{width:100%;padding:13px 4px 7px;border-radius:9px;border:1px solid var(--line);
+.setbox input[type="text"]{width:100%;padding:13px 4px 7px;border-radius:9px;border:1px solid var(--line);
   background:var(--card2);color:var(--ink);font-size:16px;font-weight:600;text-align:center;font-family:inherit}
-.setbox input:focus{outline:2px solid var(--accent);outline-offset:-1px}
-.setbox.mio input{border-style:dashed}
+.setbox input[type="text"]:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.setbox.mio input[type="text"]{border-style:dashed;border-color:var(--accent2)}
+.mchk{display:flex;align-items:center;justify-content:center;gap:3px;padding:5px 0 1px;
+  font-size:10px;font-weight:700;color:var(--ink2);cursor:pointer}
+.mchk input{width:16px;height:16px;margin:0;accent-color:var(--accent2)}
+.setbox.mio .mchk{color:var(--accent2)}
 .meta{padding:7px 12px;background:var(--card2);border-top:1px solid var(--line);
   font-size:12px;color:var(--ink2);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .meta b{color:var(--ink);font-weight:700}
@@ -237,6 +241,16 @@ function setsOf(e){return (e&&e.sets)||[];}
 function totalReps(e){var t=0,s=setsOf(e); for(var i=0;i<s.length;i++) t+=num(s[i]); return t;}
 function filledSets(e){var s=setsOf(e),c=0; for(var i=0;i<s.length;i++) if(num(s[i])>0) c++; return c;}
 function volOf(e){return num(e.ciezar)*totalReps(e);}
+function myoOf(e){return (e&&e.myoSets)||[];}
+function isMyo(e,i){return !!myoOf(e)[i];}
+function r1(x){return Math.round(x*10)/10;}
+/* serie efektywne: zwykła = 1, myo = 2/3 */
+function effSets(e){var s=setsOf(e),t=0;
+  for(var i=0;i<s.length;i++) if(num(s[i])>0) t+=isMyo(e,i)?2/3:1; return t;}
+/* średnia powtórzeń na serię — tylko serie zwykłe, bez myo */
+function avgReps(e){var s=setsOf(e),r=0,c=0;
+  for(var i=0;i<s.length;i++) if(num(s[i])>0&&!isMyo(e,i)){r+=num(s[i]);c++;}
+  return c?r/c:null;}
 function topSet(e){var s=setsOf(e),m=0,w=num(e.ciezar);
   for(var i=0;i<s.length;i++){var v=w*num(s[i]); if(v>m)m=v;} return m;}
 function topSetReps(e){var s=setsOf(e),m=0;
@@ -253,19 +267,26 @@ function save(){
   catch(e){ lastSaveOk=false; }
 }
 function migrate(e){
-  if(e.sets) return e;
-  var arr=[];
-  if(e.reps){
-    var p=String(e.reps).replace(/[^0-9+.,\s]/g,"").split(/[+,\s]+/);
-    for(var i=0;i<p.length;i++){var n=parseFloat(p[i]); if(!isNaN(n)) arr.push(String(n));}
+  if(!e.sets){
+    var arr=[];
+    if(e.reps){
+      var p=String(e.reps).replace(/[^0-9+.,\s]/g,"").split(/[+,\s]+/);
+      for(var i=0;i<p.length;i++){var n=parseFloat(p[i]); if(!isNaN(n)) arr.push(String(n));}
+    }
+    e.sets=arr; if(!e.serie&&arr.length) e.serie=String(arr.length);
+    delete e.reps;
   }
-  e.sets=arr; if(!e.serie&&arr.length) e.serie=String(arr.length);
-  delete e.reps; if(typeof e.myo!=="boolean") e.myo=false;
+  if(!e.myoSets){
+    /* stary przełącznik na całe ćwiczenie: serie od drugiej w górę były myo */
+    e.myoSets=[];
+    for(var j=0;j<e.sets.length;j++) e.myoSets.push(!!e.myo&&j>0);
+  }
+  delete e.myo;
   return e;
 }
 function load(){
   var raw=null;
-  try{ raw=localStorage.getItem(LS)||localStorage.getItem("trening_offline_v1"); }catch(e){}
+  try{ raw=localStorage.getItem(LS)||localStorage.getItem("trening_offline_v2")||localStorage.getItem("trening_offline_v1"); }catch(e){}
   if(raw){
     try{
       var o=JSON.parse(raw);
@@ -286,7 +307,7 @@ function dayEntry(ws,day,create){
 }
 function planFor(day){return (defs.plan&&defs.plan[String(day)])||[];}
 function setPlan(day,arr){defs.plan[String(day)]=arr;}
-function blank(nm){return {cw:nm,serie:"",ciezar:"",sets:[],myo:false};}
+function blank(nm){return {cw:nm,serie:"",ciezar:"",sets:[],myoSets:[]};}
 
 function entriesFor(ws,day){
   var e=dayEntry(ws,day,false);
@@ -388,28 +409,26 @@ function card(nm,adhoc){
     en.serie=v; resize(); queueSave(); drawSets(); upd();
   });
   var fW=fld("Ciężar kg",en.ciezar,"txt",function(v){ en.ciezar=v; queueSave(); upd(); });
-  var lab=el("label","myo");
-  var cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!en.myo;
-  cb.onchange=function(){ en.myo=cb.checked; queueSave(); drawSets(); upd(); };
-  lab.appendChild(cb); lab.appendChild(document.createTextNode("myo"));
-  h2.appendChild(fS); h2.appendChild(fW); h2.appendChild(lab);
+  h2.appendChild(fS); h2.appendChild(fW);
   c.appendChild(h2);
 
   var setsWrap=el("div","sets"); c.appendChild(setsWrap);
 
   function resize(){
     var n=Math.max(0,Math.min(20,Math.round(num(en.serie))));
-    var s=en.sets||[];
+    var s=en.sets||[], m=en.myoSets||[];
     while(s.length<n) s.push("");
+    while(m.length<n) m.push(false);
     if(s.length>n) s.length=n;
-    en.sets=s;
+    if(m.length>n) m.length=n;
+    en.sets=s; en.myoSets=m;
   }
   function drawSets(){
     resize();
     setsWrap.innerHTML="";
     if(!en.sets.length){ setsWrap.appendChild(el("div","tip","Wpisz liczbę serii, pojawią się okienka na powtórzenia.")); return; }
     en.sets.forEach(function(v,i){
-      var b=el("div","setbox"+(en.myo&&i>0?" mio":""));
+      var b=el("div","setbox"+(isMyo(en,i)?" mio":""));
       b.appendChild(el("span",null,String(i+1)));
       var inp=document.createElement("input");
       inp.type="text"; inp.inputMode="numeric"; inp.value=v||"";
@@ -417,22 +436,31 @@ function card(nm,adhoc){
       inp.oninput=function(){ en.sets[i]=inp.value; queueSave(); upd(); };
       inp.onkeydown=function(ev){
         if(ev.key==="Enter"){
-          var all=setsWrap.querySelectorAll("input");
+          var all=setsWrap.querySelectorAll('input[type="text"]');
           if(all[i+1]) all[i+1].focus();
           else inp.blur();
           ev.preventDefault();
         }
       };
-      b.appendChild(inp); setsWrap.appendChild(b);
+      b.appendChild(inp);
+      var ml=el("label","mchk");
+      var cb=document.createElement("input"); cb.type="checkbox"; cb.checked=isMyo(en,i);
+      cb.onchange=function(){
+        en.myoSets[i]=cb.checked;
+        b.className="setbox"+(cb.checked?" mio":"");
+        queueSave(); upd();
+      };
+      ml.appendChild(cb); ml.appendChild(document.createTextNode("myo"));
+      b.appendChild(ml);
+      setsWrap.appendChild(b);
     });
   }
 
   var meta=el("div","meta"), mA=el("span"), mB=el("span");
   meta.appendChild(mA); meta.appendChild(mB); c.appendChild(meta);
   function upd(){
-    var t=totalReps(en), v=volOf(en), n=filledSets(en), ts=topSet(en);
-    var avg = (en.myo||!n) ? null : Math.round(t/n*10)/10;
-    mA.innerHTML="Powt.: <b>"+t+"</b>"+(avg!=null?" · śr/serię: <b>"+avg+"</b>":(en.myo?" · <b>myo</b>":""));
+    var t=totalReps(en), v=volOf(en), ts=topSet(en), es=effSets(en), av=avgReps(en);
+    mA.innerHTML="Serie ef.: <b>"+r1(es)+"</b>"+(av!=null?" · śr/serię: <b>"+r1(av)+"</b>":"")+" · powt.: <b>"+t+"</b>";
     mB.innerHTML="Objętość: <b>"+Math.round(v)+"</b> kg · top: <b>"+Math.round(ts)+"</b>";
   }
   drawSets(); upd();
@@ -444,8 +472,9 @@ function card(nm,adhoc){
     var dIdx=(x.d.getDay()+6)%7;
     r.appendChild(el("span",null,DSHORT[dIdx]+" "+fmtShort(x.d)));
     var s=document.createElement("span");
-    var reps=setsOf(x.e).filter(function(q){return num(q)>0}).join(" · ");
-    s.innerHTML="<b>"+(num(x.e.ciezar)||"–")+" kg</b> · "+(reps||"–")+(x.e.myo?" · myo":"");
+    var reps=setsOf(x.e).map(function(q,i){return num(q)>0?(q+(isMyo(x.e,i)?"m":"")):null})
+      .filter(Boolean).join(" · ");
+    s.innerHTML="<b>"+(num(x.e.ciezar)||"–")+" kg</b> · "+(reps||"–");
     r.appendChild(s); hh.appendChild(r);
   });
   c.appendChild(hh);
@@ -515,7 +544,7 @@ function seriesPerPartia(ws){
   for(var d=0;d<7;d++){
     var e=logs[key(ws,d)]; if(!e) continue;
     e.entries.forEach(function(x){
-      var p=partiaOf(x.cw)||"—", s=filledSets(x)||Math.round(num(x.serie));
+      var p=partiaOf(x.cw)||"—", s=effSets(x);
       if(s) out[p]=(out[p]||0)+s;
     });
   }
@@ -527,7 +556,7 @@ function exWeek(ws,nm){
     var e=logs[key(ws,d)]; if(!e) continue;
     e.entries.forEach(function(x){
       if(x.cw!==nm) return;
-      s+=filledSets(x); r+=totalReps(x); v+=volOf(x);
+      s+=effSets(x); r+=totalReps(x); v+=volOf(x);
       if(num(x.ciezar)>mx) mx=num(x.ciezar);
       if(topSet(x)>ts) ts=topSet(x);
     });
@@ -565,13 +594,13 @@ function renderSum(){
   var data=ws.map(seriesPerPartia), any=false;
   defs.partie.forEach(function(p){
     var tr=document.createElement("tr"); tr.appendChild(el("td",null,p.kod)); var has=false;
-    data.forEach(function(d){var v=d[p.kod]||0; if(v)has=true; tr.appendChild(el("td",null,v?String(v):"–"));});
+    data.forEach(function(d){var v=d[p.kod]||0; if(v)has=true; tr.appendChild(el("td",null,v?String(r1(v)):"–"));});
     if(has){tb.appendChild(tr); any=true;}
   });
   if(!any){var tr=document.createElement("tr"); tr.appendChild(el("td",null,"—"));
     ws.forEach(function(){tr.appendChild(el("td",null,"–"))}); tb.appendChild(tr);}
   t.appendChild(tb); sc.appendChild(t); m.appendChild(sc);
-  m.appendChild(el("p","tip","Pierwsza kolumna jest przypięta — przewijaj tabelę w bok."));
+  m.appendChild(el("p","tip","Pierwsza kolumna jest przypięta — przewijaj tabelę w bok. Serie myo liczą się jako 2/3 serii."));
 
   /* wykres serii dla partii */
   m.appendChild(el("div","sect","PARTIA — SERIE TYGODNIOWO"));
@@ -602,7 +631,7 @@ function drawPartia(box,ws){
   var d=ws.map(function(w){return seriesPerPartia(w)[selPartia]||0});
   box.appendChild(chart({data:d,labels:ws.map(fmtShort),kind:"bar",
     title:"Serie tygodniowo — "+selPartia,
-    note:"Liczone są serie z wpisanymi powtórzeniami."}));
+    note:"Liczone są serie z wpisanymi powtórzeniami; serie myo jako 2/3."}));
 }
 
 function drawEx(box,ws){
@@ -634,7 +663,7 @@ function drawEx(box,ws){
   for(var i=wk.length-1;i>=0;i--){
     var tr=document.createElement("tr");
     tr.appendChild(el("td",null,fmtShort(ws[i])));
-    tr.appendChild(el("td",null,wk[i].s?String(wk[i].s):"–"));
+    tr.appendChild(el("td",null,wk[i].s?String(r1(wk[i].s)):"–"));
     tr.appendChild(el("td",null,wk[i].r?String(wk[i].r):"–"));
     tr.appendChild(el("td",null,wk[i].v?String(Math.round(wk[i].v)):"–"));
     tr.appendChild(el("td",null,wk[i].mx?String(wk[i].mx):"–"));
@@ -752,13 +781,14 @@ function dl(name,text,mime){
 function stamp(){return iso(new Date());}
 function expJSON(){ dl("trening-kopia-"+stamp()+".json",JSON.stringify({v:2,defs:defs,logs:logs}),"application/json"); }
 function expCSV(){
-  var rows=[["data_tygodnia","dzien","partia","cwiczenie","serie","ciezar","powtorzenia","suma_powt","objetosc","top_seria","myo"]];
+  var rows=[["data_tygodnia","dzien","partia","cwiczenie","serie_wpisane","serie_efektywne","ciezar","powtorzenia_(m=myo)","suma_powt","objetosc","top_seria"]];
   Object.keys(logs).sort().forEach(function(k){
     var e=logs[k];
     e.entries.forEach(function(x){
       if(!hasData(x)) return;
-      rows.push([e.weekStart,DAYS[e.day],partiaOf(x.cw),x.cw,filledSets(x),x.ciezar,
-        setsOf(x).join("+"),totalReps(x),Math.round(volOf(x)),Math.round(topSet(x)),x.myo?"tak":""]);
+      var rp=setsOf(x).map(function(q,i){return num(q)>0?(q+(isMyo(x,i)?"m":"")):null}).filter(Boolean).join("+");
+      rows.push([e.weekStart,DAYS[e.day],partiaOf(x.cw),x.cw,filledSets(x),r1(effSets(x)),x.ciezar,
+        rp,totalReps(x),Math.round(volOf(x)),Math.round(topSet(x))]);
     });
   });
   var csv=rows.map(function(r){return r.map(function(c){
